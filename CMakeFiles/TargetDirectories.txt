@@ -1,3 +1,0 @@
-/home/plutoSDR/dev/CMakeFiles/main.dir
-/home/plutoSDR/dev/CMakeFiles/edit_cache.dir
-/home/plutoSDR/dev/CMakeFiles/rebuild_cache.dir
