@@ -8,6 +8,7 @@ find_package(SoapySDR REQUIRED)
 
 set(MAIN_SOURCE_FILES
     main.c
+    func.c
 )
 
 # Добавляем исполняемый файл

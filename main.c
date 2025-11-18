@@ -4,96 +4,33 @@
 #include <stdlib.h>            //free
 #include <stdint.h>
 #include <complex.h>
+#include "func.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
-int* to_bpsk(int *array, int length){
-     int *IQ = (int*)malloc(length*2 * sizeof(int));
-   
-
-     for(int i = 0; i < length; i++){
-        if(array[i] == 0){
-            IQ[2*i] = 1;  
-        }
-        else{
-            IQ[2*i] = -1; 
-        }
-        IQ[2*i+1] = 0;
-     }
-     return IQ;
-}
-
-
-int* upsampling(int *IQ, int length, int sample) {
-    int k = 0;
-    int *tx_buff = (int*)malloc(length * sample * sizeof(int) / 2);
-    for (int i = 0; i < length; i += 2) {
-        tx_buff[k] = IQ[i];
-        k++;
-        
-        for(int j = 0; j < sample - 1; j++) {
-            tx_buff[k] = 0;
-            k++;
-        }
-    }
-    return tx_buff;
-}
-
-
-int* convolve_filter(int array[], int mask[], int len, int len_mask) {
-    int output_len = len + len_mask - 1;
-    int *output = (int*)malloc(output_len * sizeof(int));
-    
-    // Инициализируем ВЕСЬ выходной массив
-    for (int i = 0; i < output_len; i++) {
-        output[i] = 0;
-    }
-    
-    // Выполняем свертку
-    for (int i = 0; i < len; i++) {
-        for (int j = 0; j < len_mask; j++) {
-            output[i + j] += array[i] * mask[j];
-        }
-    }
-    
-    return output;
-}
 
 int main(){
-    int array[] = {0,1,1,0,1,0,0,0,0,1,1,0,0,1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,1,1,0,0,0,1,1,0,1,1,1,1,0,
-        0,1,0,0,0,0,0,0,1,1,1,0,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,0,1,1,0,0,1,1,0,0,0,0,1}; 
-    int length = sizeof(array)/sizeof(array[0]); 
+    int array[] = {
+        0,1,1,0,1,0,0,0,0,1,1,0,0,1,0,1,0,1,1,0,1,1,0,0,0,1,1,0,1,1,0,0,0,1,1,0,1,1,1,1,0,
+        0,1,0,0,0,0,0,0,1,1,1,0,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,0,1,1,0,0,1,1,0,0,0,0,1
+    };
+    int length = sizeof(array) / sizeof(array[0]);
 
     int mask[] = {1,1,1,1,1,1,1,1,1,1};
-    int len_mask = sizeof(mask)/sizeof(mask[0]);
+    int mask_len = sizeof(mask) / sizeof(mask[0]);
 
     int* array_bpsk = to_bpsk(array, length);
-    printf("IQ\n");
-    for(int i = 0; i < length * 2; i += 2){  
-        printf("%d %d ", array_bpsk[i], array_bpsk[i+1]);
-    }
-    
     int* tx = upsampling(array_bpsk, length * 2, 10);
-    int lenTX = length * 10;  // Длина после upsampling
-    
-    printf("\nUPSAMPLING\n");
-    for(int i = 0; i < lenTX; i++){  
-        printf("%d ", tx[i]);
-    }
-    
-    // ИСПРАВЛЕННЫЙ ВЫЗОВ
-    int* tx_conv = convolve_filter(tx, mask, lenTX, len_mask);  
-    int conv_length = lenTX + len_mask - 1;
+    int lenTX = length * 10;
 
-    printf("\nCONVOLUTION RESULT:\n");
-    for(int i = 0; i < conv_length; i++){  
+    int* tx_conv = convolve_filter(tx, mask, lenTX, mask_len);
+    int conv_length = lenTX - mask_len + 1;
+
+    for(int i = 0; i < conv_length; i++)
         printf("%d ", tx_conv[i]);
-    }
+
     printf("\n");
-    
+
     printf("\n");
-    SoapySDRKwargs args = {};
+ SoapySDRKwargs args = {};
     SoapySDRKwargs_set(&args, "driver", "plutosdr");        // Говорим какой Тип устройства 
     if (1) {
         SoapySDRKwargs_set(&args, "uri", "usb:");           // Способ обмена сэмплами (USB)
@@ -146,7 +83,7 @@ int main(){
     int16_t tx_buff[2 * conv_length];
 
     for(int i = 0; i < conv_length; i++){
-        tx_buff[2*i] = (int16_t)tx_conv[i]* 1500 <<4;
+        tx_buff[2*i] = (int16_t)tx_conv[i]* 2047 << 4;
         tx_buff[2*i+1] = 0;
     }
 
