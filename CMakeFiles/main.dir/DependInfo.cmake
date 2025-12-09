@@ -8,7 +8,6 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/plutoSDR/dev/func.c" "CMakeFiles/main.dir/func.c.o" "gcc" "CMakeFiles/main.dir/func.c.o.d"
   "/home/plutoSDR/dev/main.c" "CMakeFiles/main.dir/main.c.o" "gcc" "CMakeFiles/main.dir/main.c.o.d"
   )
 

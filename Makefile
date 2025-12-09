@@ -129,30 +129,6 @@ main/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/build
 .PHONY : main/fast
 
-func.o: func.c.o
-.PHONY : func.o
-
-# target to build an object file
-func.c.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/func.c.o
-.PHONY : func.c.o
-
-func.i: func.c.i
-.PHONY : func.i
-
-# target to preprocess a source file
-func.c.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/func.c.i
-.PHONY : func.c.i
-
-func.s: func.c.s
-.PHONY : func.s
-
-# target to generate assembly for a file
-func.c.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/func.c.s
-.PHONY : func.c.s
-
 main.o: main.c.o
 .PHONY : main.o
 
@@ -186,9 +162,6 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... main"
-	@echo "... func.o"
-	@echo "... func.i"
-	@echo "... func.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

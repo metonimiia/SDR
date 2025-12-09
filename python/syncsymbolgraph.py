@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 
-name = "rxdata.pcm"
+name = "../symb_after_rx.pcm"
 
 data = []
 imag = []
