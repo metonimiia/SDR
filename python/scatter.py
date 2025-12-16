@@ -43,7 +43,7 @@ print(filter)
 
 name2 = np.convolve(real, filter)
 
-output_filename = "real_part_filtered.pcm"
+output_filename = "real_part    _filtered.pcm"
 with open(output_filename, "wb") as f:
     for value in name2:
         int_value = int(value)
