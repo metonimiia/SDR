@@ -80,7 +80,7 @@ plt.scatter(real_10, real_10, alpha=0.5, s=5)
 plt.title(f'Constellation (every {step}th point)')
 plt.show()
 
-sync_name = "symbol_synchronized.pcm"
+sync_name = "/home/plutoSDR/dev/python/real_part_filtered.pcm"
 sync_symbols = []
 
 with open(sync_name, "rb") as f:
@@ -91,7 +91,6 @@ with open(sync_name, "rb") as f:
 print(f"Read {len(sync_symbols)} synchronized symbols")
 
 plt.figure(figsize=(12, 5))
-
 plt.subplot(1, 2, 1)
 plt.plot(sync_symbols, 'bo-', markersize=3, alpha=0.7)
 plt.title('Synchronized Symbols (Time Domain)')

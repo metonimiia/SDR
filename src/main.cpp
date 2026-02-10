@@ -1,3 +1,17 @@
+#include <GL/glew.h>
+#include <SDL2/SDL.h>
+#include <chrono>
+#include <thread>
+#include <iostream>
+#include <vector>
+#include <mutex>
+#include <atomic>
+
+#include "backends/imgui_impl_opengl3.h"
+#include "backends/imgui_impl_sdl2.h"
+#include "imgui.h"
+#include "implot.h" 
+
 #include <SoapySDR/Device.h> 
 #include <SoapySDR/Formats.h>
 #include <stdio.h> 
@@ -8,6 +22,139 @@
 #include <sys/types.h>
 #include <string.h>
 #include <math.h>
+
+std::vector<float> g_tx_i;
+std::vector<float> g_tx_q;
+std::vector<float> g_rx_i;
+std::vector<float> g_rx_q;
+std::mutex g_plot_mutex;
+std::atomic<bool> g_app_running{true};
+std::atomic<bool> g_pause_plot{false};
+std::atomic<bool> g_show_tx{true}; // true — TX, false — RX
+
+
+void run_gui(){
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
+    SDL_Window* window = SDL_CreateWindow(
+        "Backend start", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        1600, 900, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+
+    ImGui::CreateContext();
+    ImPlot::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Включить Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Включить Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Включить Docking
+
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+    ImGui_ImplOpenGL3_Init("#version 330");
+
+    bool running = true;
+    while (running && g_app_running.load()) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            std::cout << "Processing some event: "<< event.type << " timestamp: " << event.motion.timestamp << std::endl;
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT) {
+                running = false;
+                g_app_running.store(false);
+            }
+        }
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+        ImGui::DockSpaceOverViewport(0, nullptr, ImGuiDockNodeFlags_None);
+
+        ImGui::Begin("BPSK Monitor");
+
+        ImGui::Text("Real-time TX/RX samples visualization");
+        ImGui::Separator();
+
+        static bool auto_fit = true;
+        static float x_range = 5000.0f;
+        static float y_range = 5000.0f;
+
+        ImGui::Checkbox("Auto fit axes", &auto_fit);
+        if (!auto_fit) {
+            ImGui::SliderFloat("X range", &x_range, 10.0f, 50000.0f, "%.0f");
+            ImGui::SliderFloat("Y range", &y_range, 10.0f, 50000.0f, "%.0f");
+        }
+
+        ImGui::Separator();
+
+        if (ImGui::Button(g_pause_plot.load() ? " plot" : "pause/unpause plot")) {
+            g_pause_plot.store(!g_pause_plot.load());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(g_show_tx.load() ? "показ RX" : "показ TX")) {
+            g_show_tx.store(!g_show_tx.load());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("clear data")) {
+            std::lock_guard<std::mutex> lock(g_plot_mutex);
+            g_tx_i.clear();
+            g_tx_q.clear();
+            g_rx_i.clear();
+            g_rx_q.clear();
+        }
+
+        ImGui::Separator();
+
+        std::vector<float> local_i;
+        std::vector<float> local_q;
+        if (!g_pause_plot.load()) {
+            std::lock_guard<std::mutex> lock(g_plot_mutex);
+            if (g_show_tx.load()) {
+                local_i = g_tx_i;
+                local_q = g_tx_q;
+            } else {
+                local_i = g_rx_i;
+                local_q = g_rx_q;
+            }
+        }
+
+        if (!local_i.empty() && local_i.size() == local_q.size()) {
+            ImGui::Text("Points: %zu (%s)", local_i.size(), g_show_tx.load() ? "TX" : "RX");
+            ImGui::Separator();
+            if (ImPlot::BeginPlot(g_show_tx.load() ? "TX Constellation" : "RX Constellation")) {
+                if (auto_fit) {
+                    ImPlot::SetupAxes("I", "Q", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+                } else {
+                    ImPlot::SetupAxes("I", "Q");
+                    ImPlot::SetupAxesLimits(-x_range, x_range, -y_range, y_range, ImPlotCond_Always);
+                }
+                ImPlot::PlotScatter(g_show_tx.load() ? "TX" : "RX",
+                                    local_i.data(),
+                                    local_q.data(),
+                                    static_cast<int>(local_i.size()));
+                ImPlot::EndPlot();
+            }
+        } else {
+            ImGui::Text("No data to display yet...");
+        }
+
+        ImGui::End();
+
+        ImGui::Render();
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        SDL_GL_SwapWindow(window);
+    }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImPlot::DestroyContext();
+    ImGui::DestroyContext();
+    SDL_GL_DeleteContext(gl_context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+
 
 int *to_bpsk(int *bit_arr, int length) {
     int *bpsk_arr = (int *)malloc(length * sizeof(int));
@@ -108,6 +255,19 @@ int main(int argc, char* argv[]) {
         tx_samples[i * 2] = (int16_t)(conv_result[i] * scale_factor);
         tx_samples[i * 2 + 1] = 0;
     }
+
+    // Заполняем глобальные буферы TX для визуализации
+    {
+        std::lock_guard<std::mutex> lock(g_plot_mutex);
+        g_tx_i.clear();
+        g_tx_q.clear();
+        g_tx_i.reserve(conv_length);
+        g_tx_q.reserve(conv_length);
+        for (int i = 0; i < conv_length; ++i) {
+            g_tx_i.push_back(static_cast<float>(tx_samples[i * 2]));
+            g_tx_q.push_back(static_cast<float>(tx_samples[i * 2 + 1]));
+        }
+    }
     
     printf("Converted to %d I/Q samples\n", len_arr * 10);
 
@@ -162,11 +322,12 @@ int main(int argc, char* argv[]) {
     SoapySDRDevice_setFrequency(rx_sdr, SOAPY_SDR_RX, 0, carrier_freq, NULL);
 
     // Инициализация количества каналов
+    const size_t channels_count = 0;
     size_t channels[] = {0};
     
     // Настройки усилителей
-    SoapySDRDevice_setGain(tx_sdr, SOAPY_SDR_TX, channels, -30.0);
-    SoapySDRDevice_setGain(rx_sdr, SOAPY_SDR_RX, channels, 25.0);
+    SoapySDRDevice_setGain(tx_sdr, SOAPY_SDR_TX, channels_count, -30.0);
+    SoapySDRDevice_setGain(rx_sdr, SOAPY_SDR_RX, channels_count, 25.0);
 
     const size_t channel_count = 1;
     
@@ -217,6 +378,9 @@ int main(int argc, char* argv[]) {
 
     const long timeoutUs = 400000;
 
+    // Запускаем GUI в отдельном потоке для реального времени
+    std::thread gui_thread(run_gui);
+
     // Передача подготовленных сэмплов
     int total_samples_sent = 0;
     int flags = SOAPY_SDR_HAS_TIME;
@@ -262,17 +426,29 @@ int main(int argc, char* argv[]) {
     printf("Transmission completed. Total samples sent: %d\n", total_samples_sent);
 
     printf("Starting reception...\n");
-    size_t iteration_count = 10;
-    for (size_t buffers_read = 0; buffers_read < iteration_count; buffers_read++) {
+    // Принимаем ограниченное количество буферов, независимо от того, живо ли окно GUI
+    size_t iteration_count = 50; // небольшое число пакетов для примера
+    for (size_t buffers_read = 0; buffers_read < iteration_count && g_app_running.load(); ++buffers_read) {
         void *rx_buffs[] = {rx_buffer};
         int flags;
         long long timeNs;
-        
+
         int sr = SoapySDRDevice_readStream(rx_sdr, rxStream, rx_buffs, rx_mtu, &flags, &timeNs, timeoutUs);
 
         if (sr > 0) {
             fwrite(rx_buffer, sr * 2 * sizeof(int16_t), 1, fptr);
             printf("Received buffer %lu: %d samples\n", buffers_read, sr);
+
+            // Добавляем принятые сэмплы в глобальные буферы RX для визуализации
+            {
+                std::lock_guard<std::mutex> lock(g_plot_mutex);
+                g_rx_i.reserve(g_rx_i.size() + sr);
+                g_rx_q.reserve(g_rx_q.size() + sr);
+                for (int i = 0; i < sr; ++i) {
+                    g_rx_i.push_back(static_cast<float>(rx_buffer[2 * i]));
+                    g_rx_q.push_back(static_cast<float>(rx_buffer[2 * i + 1]));
+                }
+            }
         } else {
             printf("RX Failed: %i\n", sr);
         }
@@ -294,6 +470,11 @@ int main(int argc, char* argv[]) {
     SoapySDRDevice_closeStream(rx_sdr, rxStream);
     SoapySDRDevice_unmake(tx_sdr);
     SoapySDRDevice_unmake(rx_sdr);
+
+    // Ждём завершения GUI-потока (закрытие окна пользователем)
+    if (gui_thread.joinable()) {
+        gui_thread.join();
+    }
 
     return EXIT_SUCCESS;
 }
